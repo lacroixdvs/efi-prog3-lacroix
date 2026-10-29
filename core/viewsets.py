@@ -13,6 +13,9 @@ class PostViewSet(viewsets.ModelViewSet):
             return PostListSerializer
         return PostSerializer
 
+    def create(self, request, *args, **kwargs):
+        return 
+
 class RutinaViewSet(viewsets.ModelViewSet):
     queryset = Rutina.objects.all()
     filterset_fields = ['usuario']

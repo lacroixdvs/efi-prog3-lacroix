@@ -17,7 +17,7 @@ class EntrenadorLacroix(models.Model):
 class PlanLacroix(models.Model):
     NIVELES = [('INICIO','INICIO'),('POPULAR','MÁS POPULAR'),('PRO','PRO')]
     nombre = models.CharField(max_length=50) # Minimal, Brutal, Avanzado
-    precio = models.DecimalField(max_digits=6, decimal_places=2) # 29, 59, 99
+    precio = models.DecimalField(max_digits=10, decimal_places=2) # 29, 59, 99
     nivel = models.CharField(max_length=10, choices=NIVELES)
     beneficios = models.JSONField(default=list)
     def __str__(self): return f"{self.nombre} - ${self.precio}"
@@ -40,17 +40,20 @@ class Rutina(models.Model):
     nombre = models.CharField(max_length=100)
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='rutinas')
     entrenador = models.ForeignKey(EntrenadorLacroix, on_delete=models.SET_NULL, null=True)
-
+    def __str__(self):
+        return self.nombre
 class Ejercicio(models.Model):
     nombre = models.CharField(max_length=100)
     musculo = models.CharField(max_length=50)
     def __str__(self): return self.nombre
+
 
 class RutinaEjercicio(models.Model):
     rutina = models.ForeignKey(Rutina, on_delete=models.CASCADE, related_name='ejercicios_detalle')
     ejercicio = models.ForeignKey(Ejercicio, on_delete=models.CASCADE)
     series = models.IntegerField()
     repeticiones = models.IntegerField()
+    def __str__(self): return f"{self.rutina.nombre} - {self.ejercicio.nombre}"
 
 class MetaLacroix(models.Model):
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='metas')
