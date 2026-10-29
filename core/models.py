@@ -66,3 +66,6 @@ class ProgresoDiario(models.Model):
     calorias = models.IntegerField()
     pasos = models.IntegerField()
     fecha = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.usuario} - {self.fecha} - {self.pasos} pasos"

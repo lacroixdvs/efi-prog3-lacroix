@@ -8,18 +8,20 @@ class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     filterset_fields = ['categoria']
     search_fields = ['titulo']
+    
     def get_serializer_class(self):
         if self.action == 'list':
             return PostListSerializer
         return PostSerializer
 
-    def create(self, request, *args, **kwargs):
-        return 
+    def perform_create(self, serializer):
+        serializer.save(usuario=self.request.user)
 
 class RutinaViewSet(viewsets.ModelViewSet):
     queryset = Rutina.objects.all()
     filterset_fields = ['usuario']
     search_fields = ['nombre']
+    
     def get_serializer_class(self):
         if self.action == 'list':
             return RutinaListSerializer
@@ -28,7 +30,11 @@ class RutinaViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def duplicar(self, request, pk=None):
         rutina = self.get_object()
-        nueva = Rutina.objects.create(nombre=f"{rutina.nombre} (copia)", usuario=rutina.usuario, entrenador=rutina.entrenador)
+        nueva = Rutina.objects.create(
+            nombre=f"{rutina.nombre} (copia)", 
+            usuario=rutina.usuario, 
+            entrenador=rutina.entrenador
+        )
         return Response({'status': f'Rutina Lacroix {nueva.id} duplicada'})
 
 class PlanLacroixViewSet(viewsets.ModelViewSet):
@@ -49,7 +55,6 @@ class MetaLacroixViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def resumen_mensual(self, request):
-        # Esto alimenta tu Foto 3 - Dashboard
         data = {'objetivos_completados': 12, 'calorias': 2450, 'pasos': 10200, 'racha': 7}
         return Response(data)
 
@@ -60,3 +65,14 @@ class CategoriaBlogViewSet(viewsets.ModelViewSet):
 class ProgresoDiarioViewSet(viewsets.ModelViewSet):
     queryset = ProgresoDiario.objects.all()
     serializer_class = ProgresoDiarioSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(usuario=self.request.user)
+
+class ComentarioViewSet(viewsets.ModelViewSet):
+    queryset = Comentario.objects.all()
+    serializer_class = ComentarioSerializer
+
+    def perform_create(self, serializer):
+        # ARREGLO SEGURIDAD: el usuario se asigna solo, no manual
+        serializer.save(usuario=self.request.user)

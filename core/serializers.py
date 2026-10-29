@@ -5,6 +5,8 @@ class ComentarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comentario
         fields = '__all__'
+        read_only_fields = ['usuario', 'fecha']  # <-- AGREGA ESTO 
+        # Con read_only_fields ya no aparece para elegir en Swagger, no lo podés cargar manual.
 
 class PostListSerializer(serializers.ModelSerializer):
     comentarios = ComentarioSerializer(many=True, read_only=True)
