@@ -1,78 +1,62 @@
 from rest_framework import viewsets
-from rest_framework.decorators import action
-from rest_framework.response import Response
 from .models import *
 from .serializers import *
+from rest_framework.permissions import AllowAny
+
+
+class UsuarioViewSet(viewsets.ModelViewSet):
+    queryset = Usuario.objects.all().order_by('id')
+    serializer_class = UsuarioSerializer
+    def perform_create(self, serializer):
+        password = self.request.data.get('password', '12345678')
+        user = serializer.save()
+        user.set_password(password)
+        user.save()
+
 
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
-    filterset_fields = ['categoria']
-    search_fields = ['titulo']
-    
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return PostListSerializer
-        return PostSerializer
+    serializer_class = PostSerializer
+    permission_classes = [AllowAny]  # para probar, después lo volvés a poner
 
     def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        if not user:
+            # Si viene sin token, usa el primer admin que haya
+            from .models import Usuario
+            user = Usuario.objects.filter(is_superuser=True).first() or Usuario.objects.first()
+        
+        categoria = serializer.validated_data.get('categoria')
+        if not categoria:
+            from .models import CategoriaBlog
+            categoria = CategoriaBlog.objects.first()
+        
+        serializer.save(autor=user, categoria=categoria)
+class ComentarioViewSet(viewsets.ModelViewSet):
+    queryset = Comentario.objects.all().order_by('-id')
+    serializer_class = ComentarioSerializer
+    def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
-
-class RutinaViewSet(viewsets.ModelViewSet):
-    queryset = Rutina.objects.all()
-    filterset_fields = ['usuario']
-    search_fields = ['nombre']
-    
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return RutinaListSerializer
-        return RutinaSerializer
-
-    @action(detail=True, methods=['post'])
-    def duplicar(self, request, pk=None):
-        rutina = self.get_object()
-        nueva = Rutina.objects.create(
-            nombre=f"{rutina.nombre} (copia)", 
-            usuario=rutina.usuario, 
-            entrenador=rutina.entrenador
-        )
-        return Response({'status': f'Rutina Lacroix {nueva.id} duplicada'})
-
-class PlanLacroixViewSet(viewsets.ModelViewSet):
-    queryset = PlanLacroix.objects.all()
-    serializer_class = PlanLacroixSerializer
-    filterset_fields = ['nivel']
-    search_fields = ['nombre']
-    ordering_fields = ['precio']
-
-    @action(detail=True, methods=['post'])
-    def inscribirse(self, request, pk=None):
-        plan = self.get_object()
-        return Response({'message': f'Inscripto a {plan.nombre} por ${plan.precio}'})
-
-class MetaLacroixViewSet(viewsets.ModelViewSet):
-    queryset = MetaLacroix.objects.all()
-    serializer_class = MetaLacroixSerializer
-    
-    @action(detail=False, methods=['get'])
-    def resumen_mensual(self, request):
-        data = {'objetivos_completados': 12, 'calorias': 2450, 'pasos': 10200, 'racha': 7}
-        return Response(data)
 
 class CategoriaBlogViewSet(viewsets.ModelViewSet):
     queryset = CategoriaBlog.objects.all()
     serializer_class = CategoriaBlogSerializer
 
+class PlanLacroixViewSet(viewsets.ModelViewSet):
+    queryset = PlanLacroix.objects.all()
+    serializer_class = PlanLacroixSerializer
+
+class MetaLacroixViewSet(viewsets.ModelViewSet):
+    queryset = MetaLacroix.objects.all()
+    serializer_class = MetaLacroixSerializer
+
 class ProgresoDiarioViewSet(viewsets.ModelViewSet):
     queryset = ProgresoDiario.objects.all()
     serializer_class = ProgresoDiarioSerializer
 
-    def perform_create(self, serializer):
-        serializer.save(usuario=self.request.user)
-
-class ComentarioViewSet(viewsets.ModelViewSet):
-    queryset = Comentario.objects.all()
-    serializer_class = ComentarioSerializer
-
-    def perform_create(self, serializer):
-        # ARREGLO SEGURIDAD: el usuario se asigna solo, no manual
-        serializer.save(usuario=self.request.user)
+class RutinaViewSet(viewsets.ModelViewSet):
+    queryset = Rutina.objects.all()
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return RutinaListSerializer
+        return RutinaSerializer
