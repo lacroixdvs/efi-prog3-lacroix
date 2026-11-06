@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fitness Lacroix - Frontend (EFI Programación III)
 
-## Getting Started
+Aplicación web interactiva y responsiva desarrollada para la plataforma **Fitness Lacroix**, orientada a la gestión de planes de entrenamiento, catálogo de clases y reservas de usuarios.
 
-First, run the development server:
+## 📋 Temática y API Consumida
+- **Temática:** Plataforma de gestión fitness, membresías, profesores y login de usuarios.
+- **Repositorio Monorepo / Backend:** https://github.com/lacroixdvs/efi-prog3-lacroix
+- **API Backend:** API REST construida en **Django / Django REST Framework** (Cátedra Ingeniería de Software).
 
-```bash
+## 🚀 Enlaces del Proyecto
+- **Aplicación Desplegada (Vercel):** https://efi-prog3-lacroix.vercel.app
+- **Tablero Kanban (Metodología Ágil):** https://trello.com/b/OkM4woSJ/mi-tablero-de-trello
+
+## 👤 Integrante
+- **Nicolás Lacroix**
+
+---
+
+## 🛠️ Tecnologías y Estructura
+- **Framework:** Next.js 15 (App Router) + React 19
+- **Estilos:** Tailwind CSS v4
+- **Lenguaje:** TypeScript (TSX)
+- **Validación de Datos:** Zod (`src/lib/schemas.ts`)
+- **Testing:** Vitest + Testing Library (`jsdom`)
+- **Despliegue:** Vercel
+
+---
+
+## ⚙️ Requisitos y Configuración Local
+
+### 1. Variables de Entorno
+Crear un archivo `.env.local` en la carpeta `frontend/` con la siguiente variable:
+
+NEXT_PUBLIC_API_URL=https://api-placeholder.com/api
+
+### 2. Pasos para Ejecutar Localmente
+
+1. Clonar el repositorio y navegar a la carpeta del frontend:
+git clone https://github.com/lacroixdvs/efi-prog3-lacroix.git
+cd efi-prog3-lacroix/frontend
+
+2. Instalar las dependencias:
+npm install
+
+3. Iniciar el servidor de desarrollo:
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+*La aplicación estará disponible en http://localhost:3000.*
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🧪 Ejecución de Tests Unitarios
 
-## Learn More
+La suite de pruebas con **Vitest** abarca:
+- Pruebas de componentes de UI (`Button.test.tsx`).
+- Pruebas de validación de esquemas Zod (`schemas.test.ts` para `loginSchema` y `planSchema`).
 
-To learn more about Next.js, take a look at the following resources:
+Para ejecutar todos los tests:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+npm run test
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 📸 Capturas de la Aplicación en Funcionamiento
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+![Vista de la aplicación 1](./docs/app-preview%20(1).png)
+![Vista de la aplicación 2](./docs/app-preview%20(2).png)
+![Vista de la aplicación 3](./docs/app-preview%20(3).png)
+![Vista de la aplicación 4](./docs/app-preview%20(4).png)
+![Vista de la aplicación 5](./docs/app-preview%20(5).png)
+![Vista de la aplicación 6](./docs/app-preview%20(6).png)
+![Vista de la aplicación 7](./docs/app-preview%20(7).png)
+![Vista de la aplicación 8](./docs/app-preview%20(8).png)
+![Vista de la aplicación 9](./docs/app-preview%20(1).png)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 🌳 Metodología de Trabajo y GitFlow
+El proyecto sigue la estrategia de ramas **GitFlow**:
+- **`main`**: Código estable y desplegado en Vercel.
+- **`develop`**: Rama de integración de características.
+- **`feature/*`**: Ramas de trabajo funcional (`feature/efi-frontend-setup`).
+
+---
+
+## 💻 Comandos para guardar y subir los cambios a GitHub (Terminal)
+
