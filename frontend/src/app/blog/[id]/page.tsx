@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { apiFetch, getAccessToken } from "@/lib/api";
 
 interface Comentario {
   id: number;
@@ -10,35 +12,29 @@ interface Comentario {
   creado?: string;
 }
 
-const API = "http://localhost:8000/api";
-
 export default function BlogPostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [post, setPost] = useState<any>(null);
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [nuevoComentario, setNuevoComentario] = useState("");
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Carga del post y sus comentarios desde Django REST
   const cargarDetalle = async () => {
     try {
       // 1. Obtener Post
-      const resP = await fetch(`${API}/posts/${id}/`);
-      if (resP.ok) {
-        const dataP = await resP.json();
-        setPost(dataP);
-      }
+      const dataP = await apiFetch(`/posts/${id}/`);
+      setPost(dataP);
 
       // 2. Obtener Comentarios
-      const resC = await fetch(`${API}/comentarios/`);
-      if (resC.ok) {
-        const dataC = await resC.json();
-        const lista: Comentario[] = Array.isArray(dataC) ? dataC : dataC.results || [];
-        // Filtra los comentarios pertenecientes a este post en particular
-        const filtrados = lista.filter((c: any) => String(c.post) === String(id));
-        setComentarios(filtrados);
-      }
+      const dataC = await apiFetch("/comentarios/");
+      const lista: Comentario[] = Array.isArray(dataC) ? dataC : dataC.results || [];
+      // Filtra los comentarios pertenecientes a este post en particular
+      const filtrados = lista.filter((c: any) => String(c.post) === String(id));
+      setComentarios(filtrados);
     } catch (e) {
       console.log("Error al cargar post o comentarios:", e);
     } finally {
@@ -47,7 +43,15 @@ export default function BlogPostPage({ params }: { params: Promise<{ id: string 
   };
 
   useEffect(() => {
+    const checkAuth = () => {
+      setIsLoggedIn(Boolean(getAccessToken()));
+    };
+
+    checkAuth();
     cargarDetalle();
+
+    window.addEventListener("authChange", checkAuth);
+    return () => window.removeEventListener("authChange", checkAuth);
   }, [id]);
 
   // Enviar un comentario
@@ -55,32 +59,31 @@ export default function BlogPostPage({ params }: { params: Promise<{ id: string 
     e.preventDefault();
     if (!nuevoComentario.trim()) return;
 
+    if (!getAccessToken()) {
+      alert("Debés iniciar sesión para comentar.");
+      return;
+    }
+
     setEnviando(true);
-    const token = localStorage.getItem("access");
-    const currentUser = localStorage.getItem("user") || "Alumno";
 
     try {
-      const res = await fetch(`${API}/comentarios/`, {
+      await apiFetch("/comentarios/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify({
           post: Number(id),
           texto: nuevoComentario,
-          usuario_username: currentUser,
         }),
       });
 
-      if (res.ok) {
-        setNuevoComentario("");
-        cargarDetalle(); // Recarga los comentarios al instante
+      setNuevoComentario("");
+      cargarDetalle(); // Recarga los comentarios al instante
+    } catch (err: any) {
+      if (err.message === "UNAUTHORIZED") {
+        alert("Tu sesión expiró. Por favor, volvé a iniciar sesión.");
+        router.push("/login");
       } else {
-        alert("No se pudo enviar el comentario. Verificá tu sesión.");
+        alert(`No se pudo enviar el comentario: ${err.message}`);
       }
-    } catch (err) {
-      alert("Error de conexión al enviar el comentario.");
     } finally {
       setEnviando(false);
     }
@@ -120,26 +123,40 @@ export default function BlogPostPage({ params }: { params: Promise<{ id: string 
             Comentarios <span className="text-xs text-[#FF4D00]">({comentarios.length})</span>
           </h3>
 
-          {/* Formulario para agregar comentario */}
-          <form onSubmit={handleEnviarComentario} className="space-y-3">
-            <textarea
-              value={nuevoComentario}
-              onChange={(e) => setNuevoComentario(e.target.value)}
-              placeholder="Escribí tu opinión o consulta sobre este tema..."
-              className="w-full bg-[#181818] border border-white/10 rounded-2xl p-4 text-xs text-white focus:outline-none focus:border-[#FF4D00]"
-              rows={3}
-              required
-            />
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={enviando}
-                className="bg-[#FF4D00] text-black font-black text-xs px-6 py-3 rounded-xl hover:bg-white transition-all uppercase"
+          {/* Formulario solo visible si hay sesión iniciada */}
+          {isLoggedIn ? (
+            <form onSubmit={handleEnviarComentario} className="space-y-3">
+              <textarea
+                value={nuevoComentario}
+                onChange={(e) => setNuevoComentario(e.target.value)}
+                placeholder="Escribí tu opinión o consulta sobre este tema..."
+                className="w-full bg-[#181818] border border-white/10 rounded-2xl p-4 text-xs text-white focus:outline-none focus:border-[#FF4D00]"
+                rows={3}
+                required
+              />
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={enviando}
+                  className="bg-[#FF4D00] text-black font-black text-xs px-6 py-3 rounded-xl hover:bg-white transition-all uppercase"
+                >
+                  {enviando ? "Publicando..." : "Comentar"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="bg-[#181818] border border-white/10 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs text-white/60">
+                Iniciá sesión con tu cuenta para dejar un comentario en este artículo.
+              </p>
+              <Link
+                href="/login"
+                className="bg-[#FF4D00] text-black font-black text-xs px-5 py-2.5 rounded-xl hover:bg-white transition-all uppercase shrink-0"
               >
-                {enviando ? "Publicando..." : "Comentar"}
-              </button>
+                Iniciar sesión
+              </Link>
             </div>
-          </form>
+          )}
 
           {/* Lista de comentarios */}
           <div className="space-y-4 pt-4 border-t border-white/10">

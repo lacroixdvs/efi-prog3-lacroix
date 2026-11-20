@@ -3,9 +3,13 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { loginSchema, LoginFormData } from "@/lib/schemas";
+import { saveAuthCookies } from "@/lib/api";
 import { Input } from "@/components/Input";
 import { Button } from "@/components/Button";
+
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 
 export default function Login() {
   const router = useRouter();
@@ -27,8 +31,7 @@ export default function Login() {
     const { username, password } = data;
 
     try {
-      // 1. Intento real contra Django JWT
-      const res = await fetch("http://127.0.0.1:8000/api/token/", {
+      const res = await fetch(`${API}/token/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -36,43 +39,23 @@ export default function Login() {
 
       if (res.ok) {
         const responseData = await res.json();
-        localStorage.setItem("access", responseData.access);
-        localStorage.setItem("refresh", responseData.refresh || "");
-        localStorage.setItem("user", username);
-        
-        // Asignamos rol admin si es usuario admin
         const isAdminUser = username.toLowerCase() === "admin";
-        localStorage.setItem("is_admin", String(isAdminUser));
 
-        // Disparamos evento para refrescar la Navbar al instante
-        window.dispatchEvent(new Event("authChange"));
+        saveAuthCookies(
+          responseData.access,
+          responseData.refresh || "",
+          username,
+          isAdminUser
+        );
 
         router.push(isAdminUser ? "/dashboard" : "/");
-        return;
+      } else {
+        setApiError("Usuario o contraseña incorrectos. (Si sos alumno creado desde el panel, tu clave por defecto es 12345678).");
       }
     } catch (e) {
-      console.log("Servidor backend no disponible, evaluando modo demo...");
+      setApiError("No se pudo conectar con el servidor de Django (puerto 8000).");
     } finally {
       setLoading(false);
-    }
-
-    // 2. Fallback de pruebas si no hay conexión con Django
-    if (username === "admin" && password === "admin") {
-      localStorage.setItem("access", "demo_token_para_EFI");
-      localStorage.setItem("user", "admin");
-      localStorage.setItem("is_admin", "true");
-
-      window.dispatchEvent(new Event("authChange"));
-      router.push("/dashboard");
-    } else if (username !== "") {
-      localStorage.setItem("access", "user_token");
-      localStorage.setItem("user", username);
-      localStorage.setItem("is_admin", "false");
-
-      window.dispatchEvent(new Event("authChange"));
-      router.push("/");
-    } else {
-      setApiError("Credenciales inválidas. Usá admin/admin para el panel administrativo.");
     }
   };
 
@@ -83,7 +66,7 @@ export default function Login() {
           LOGIN <span className="text-[#FF4D00]">LACROIX</span>
         </h1>
         <p className="text-xs text-white/40 text-center mb-6">
-          admin/admin = ADMIN | otro usuario = LECTURA
+          Ingresá con tu cuenta de Fitness Lacroix
         </p>
 
         {apiError && (
@@ -95,7 +78,7 @@ export default function Login() {
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <Input
             label="Usuario"
-            placeholder="Ej: admin"
+            placeholder="Ej: gomezcarlos"
             {...register("username")}
             error={errors.username?.message}
           />
@@ -113,8 +96,15 @@ export default function Login() {
           </Button>
         </form>
 
-        <p className="text-[10px] text-white/30 mt-6 text-center leading-relaxed">
-          Probá: admin/admin → te lleva al dashboard CRUD | nico/1234 → te lleva al home
+        <p className="text-xs text-white/40 mt-5 text-center">
+          ¿Todavía no sos alumno?{" "}
+          <Link href="/registro" className="text-[#FF4D00] font-bold hover:underline">
+            Registrate acá
+          </Link>
+        </p>
+
+        <p className="text-[10px] text-white/30 mt-4 text-center leading-relaxed">
+          Alumnos dados de alta por admin: contraseña inicial 12345678
         </p>
       </div>
     </div>

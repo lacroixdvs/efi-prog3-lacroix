@@ -67,3 +67,21 @@ class CategoriaBlogSerializer(serializers.ModelSerializer):
     class Meta:
         model = CategoriaBlog
         fields = '__all__'
+
+
+class RegistroAlumnoSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=6)
+
+    class Meta:
+        model = Usuario
+        fields = ['id', 'username', 'email', 'password', 'es_premium']
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        user = Usuario(**validated_data)
+        user.is_staff = False
+        user.is_superuser = False
+        user.is_active = True
+        user.set_password(password)
+        user.save()
+        return user
