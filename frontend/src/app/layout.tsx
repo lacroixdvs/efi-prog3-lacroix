@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { getCookie, clearAuthCookies } from "@/lib/api";
 import "./globals.css";
 
 function NavbarHeader() {
@@ -12,8 +13,8 @@ function NavbarHeader() {
 
   useEffect(() => {
     const checkAuth = () => {
-      const user = localStorage.getItem("user");
-      const adminFlag = localStorage.getItem("is_admin");
+      const user = getCookie("user");
+      const adminFlag = getCookie("is_admin");
 
       setCurrentUser(user && user !== "null" ? user : null);
       setIsAdmin(adminFlag === "true");
@@ -21,20 +22,14 @@ function NavbarHeader() {
 
     checkAuth();
 
-    window.addEventListener("storage", checkAuth);
     window.addEventListener("authChange", checkAuth);
-
-    return () => {
-      window.removeEventListener("storage", checkAuth);
-      window.removeEventListener("authChange", checkAuth);
-    };
+    return () => window.removeEventListener("authChange", checkAuth);
   }, [pathname]);
 
   const handleLogout = () => {
-    localStorage.clear();
+    clearAuthCookies();
     setCurrentUser(null);
     setIsAdmin(false);
-    window.dispatchEvent(new Event("authChange"));
     router.push("/login");
   };
 
@@ -44,7 +39,7 @@ function NavbarHeader() {
         <Link href="/" className="text-[#FF4D00] font-black text-2xl leading-none">
           FITNESS<br />LACROIX
         </Link>
-        
+
         <nav className="hidden md:flex gap-6 text-xs tracking-widest text-white/60 items-center">
           <Link href="/" className="hover:text-white transition-colors">INICIO</Link>
           <Link href="/blog" className="hover:text-white transition-colors">BLOG</Link>
@@ -80,14 +75,15 @@ function NavbarHeader() {
             </div>
           ) : (
             /* Estado 1: Invitado sin sesión */
-            <Link href="/login" className="border border-white/20 px-6 py-2 text-xs hover:bg-white/10 transition-all">
-              ACCESO
-            </Link>
+            <>
+              <Link href="/login" className="border border-white/20 px-6 py-2 text-xs hover:bg-white/10 transition-all">
+                ACCESO
+              </Link>
+              <Link href="/registro" className="bg-[#FF4D00] text-black px-6 py-2 text-xs font-black hover:bg-white transition-all">
+                UNETE AHORA
+              </Link>
+            </>
           )}
-
-          <Link href="/membership" className="bg-[#FF4D00] text-black px-6 py-2 text-xs font-black hover:bg-white transition-all">
-            UNETE AHORA
-          </Link>
         </div>
       </div>
     </header>

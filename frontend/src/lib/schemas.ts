@@ -13,5 +13,17 @@ export const planSchema = z.object({
   descripcion: z.string().min(5, "La descripción debe tener al menos 5 caracteres"),
 });
 
+// Esquema 3: Registro público de Alumnos
+export const registroSchema = z.object({
+  username: z
+    .string()
+    .min(3, "El usuario debe tener al menos 3 caracteres")
+    .regex(/^[a-zA-Z0-9_]+$/, "Solo letras, números y guión bajo (sin espacios)"),
+  email: z.string().email("Ingresá un email válido"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+  plan: z.enum(["BEAST", "BEAST PRO"]),
+});
+
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type PlanFormData = z.infer<typeof planSchema>;
+export type RegistroFormData = z.infer<typeof registroSchema>;

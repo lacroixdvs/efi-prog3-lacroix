@@ -1,10 +1,11 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { getCookie, saveAuthCookies, clearAuthCookies } from "@/lib/api";
 
 interface AuthContextType {
   user: string | null;
   isAdmin: boolean;
-  loginUser: (username: string, token: string, admin: boolean) => void;
+  loginUser: (username: string, token: string, admin: boolean, refresh?: string) => void;
   logout: () => void;
 }
 
@@ -15,30 +16,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const storedAdmin = localStorage.getItem("is_admin") === "true";
-    if (storedUser) {
-      setUser(storedUser);
+    const syncAuth = () => {
+      const storedUser = getCookie("user");
+      const storedAdmin = getCookie("is_admin") === "true";
+      setUser(storedUser && storedUser !== "null" ? storedUser : null);
       setIsAdmin(storedAdmin);
-    }
+    };
+
+    syncAuth();
+    window.addEventListener("authChange", syncAuth);
+    return () => window.removeEventListener("authChange", syncAuth);
   }, []);
 
-  const loginUser = (username: string, token: string, admin: boolean) => {
-    localStorage.setItem("user", username);
-    localStorage.setItem("access", token);
-    localStorage.setItem("is_admin", String(admin));
+  const loginUser = (username: string, token: string, admin: boolean, refresh = "") => {
+    saveAuthCookies(token, refresh, username, admin);
     setUser(username);
     setIsAdmin(admin);
   };
 
   const logout = () => {
-    localStorage.clear();
+    clearAuthCookies();
     setUser(null);
     setIsAdmin(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loginUser, logout }}> 
+    <AuthContext.Provider value={{ user, isAdmin, loginUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

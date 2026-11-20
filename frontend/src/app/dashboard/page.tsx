@@ -4,6 +4,12 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import {
+  apiFetch,
+  getAccessToken,
+  getCookie,
+  clearAuthCookies,
+} from "@/lib/api";
 
 // Esquema Zod para validar la creación/edición de Posts
 const postSchema = z.object({
@@ -14,7 +20,7 @@ const postSchema = z.object({
 type PostFormData = z.infer<typeof postSchema>;
 type Tab = "ALUMNOS" | "POSTS" | "COMENTARIOS" | "USUARIOS";
 
-const API = "http://localhost:8000/api";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 
 export default function DashboardPro() {
   const router = useRouter();
@@ -49,17 +55,12 @@ export default function DashboardPro() {
     resolver: zodResolver(postSchema),
   });
 
-  const getHeaders = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("access")}`,
-  });
-
   useEffect(() => {
-    const token = localStorage.getItem("access");
-    const userName = localStorage.getItem("user");
-    const isAdmin = localStorage.getItem("is_admin");
+    const token = getAccessToken();
+    const userName = getCookie("user");
+    const isAdmin = getCookie("is_admin");
 
-    if (!token || token === "null" || token === "") {
+    if (!token) {
       router.push("/login");
       return;
     }
@@ -75,56 +76,45 @@ export default function DashboardPro() {
   const load = async () => {
     try {
       // 1. Categorías
-      const resCat = await fetch(`${API}/categorias/`, { headers: getHeaders() });
-      if (resCat.ok) {
-        const dCat = await resCat.json();
-        setCategorias(Array.isArray(dCat) ? dCat : dCat.results || []);
-      }
+      const dCat = await apiFetch("/categorias/");
+      setCategorias(Array.isArray(dCat) ? dCat : dCat.results || []);
 
       // 2. Usuarios / Alumnos
-      let resU = await fetch(`${API}/usuarios/`, { headers: getHeaders() });
-      if (resU.status === 401) resU = await fetch(`${API}/usuarios/`);
-      if (resU.ok) {
-        const dU = await resU.json();
-        const lista = Array.isArray(dU) ? dU : dU.results || [];
-        setUsuariosDjango(lista);
-        const alumnosMapeados = lista.map((u: any) => ({
-          id: u.id,
-          nombre: u.username,
-          email: u.email || `${u.username}@lacroix.com`,
-          plan: u.es_premium ? "BEAST PRO" : "BEAST",
-          estado: u.is_active !== false ? "ACTIVO" : "VENCIDO",
-          progreso: u.es_premium ? 85 : 62,
-          _raw: u,
-        }));
-        setAlumnos(alumnosMapeados);
-      }
+      const dU = await apiFetch("/usuarios/");
+      const lista = Array.isArray(dU) ? dU : dU.results || [];
+      setUsuariosDjango(lista);
+      const alumnosMapeados = lista.map((u: any) => ({
+        id: u.id,
+        nombre: u.username,
+        email: u.email || `${u.username}@lacroix.com`,
+        plan: u.es_premium ? "BEAST PRO" : "BEAST",
+        estado: u.is_active !== false ? "ACTIVO" : "VENCIDO",
+        progreso: u.es_premium ? 85 : 62,
+        _raw: u,
+      }));
+      setAlumnos(alumnosMapeados);
 
       // 3. Posts (Blog)
-      let resP = await fetch(`${API}/posts/`, { headers: getHeaders() });
-      if (resP.status === 401) resP = await fetch(`${API}/posts/`);
-      if (resP.ok) {
-        const dP = await resP.json();
-        setPosts(Array.isArray(dP) ? dP : dP.results || []);
-      }
+      const dP = await apiFetch("/posts/");
+      setPosts(Array.isArray(dP) ? dP : dP.results || []);
 
       // 4. Comentarios
-      let resC = await fetch(`${API}/comentarios/`, { headers: getHeaders() });
-      if (resC.status === 401) resC = await fetch(`${API}/comentarios/`);
-      if (resC.ok) {
-        const dC = await resC.json();
-        const listaC = Array.isArray(dC) ? dC : dC.results || [];
-        const norm = listaC.map((c: any) => ({
-          id: c.id,
-          texto: c.texto,
-          postId: c.post,
-          autor: { username: c.usuario_username || c.usuario || "Anónimo" },
-          usuario: c.usuario,
-          creado: c.creado,
-        }));
-        setComentarios(norm);
+      const dC = await apiFetch("/comentarios/");
+      const listaC = Array.isArray(dC) ? dC : dC.results || [];
+      const norm = listaC.map((c: any) => ({
+        id: c.id,
+        texto: c.texto,
+        postId: c.post,
+        autor: { username: c.usuario_username || c.usuario || "Anónimo" },
+        usuario: c.usuario,
+        creado: c.creado,
+      }));
+      setComentarios(norm);
+    } catch (e: any) {
+      if (e.message === "UNAUTHORIZED") {
+        router.push("/login");
+        return;
       }
-    } catch (e) {
       console.log("Error al cargar datos de Django:", e);
     }
   };
@@ -134,95 +124,97 @@ export default function DashboardPro() {
   }, [auth, tab]);
 
   const logout = () => {
-    localStorage.clear();
-    window.dispatchEvent(new Event("authChange"));
+    clearAuthCookies();
     router.push("/login");
   };
 
   // Guardar o Editar Post con Zod
   const onSubmitPost = async (data: PostFormData) => {
-    let categoriaId = categorias.length > 0 ? categorias[0].id : 1;
+    try {
+      let categoriaId = categorias.length > 0 ? categorias[0].id : null;
 
-    if (editingId) {
-      const res = await fetch(`${API}/posts/${editingId}/`, {
-        method: "PATCH",
-        headers: getHeaders(),
-        body: JSON.stringify({ titulo: data.titulo, contenido: data.contenido }),
-      });
-      if (!res.ok) {
-        alert("No se pudo editar el post: " + res.status);
-        return;
+      // Si no hay categorías creadas en Django, crea una por defecto automáticamente
+      if (!categoriaId && !editingId) {
+        const nuevaCat = await apiFetch("/categorias/", {
+          method: "POST",
+          body: JSON.stringify({ nombre: "General" }),
+        });
+        categoriaId = nuevaCat.id;
       }
-      setEditingId(null);
-    } else {
-      const res = await fetch(`${API}/posts/`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({
-          titulo: data.titulo,
-          contenido: data.contenido,
-          categoria: categoriaId,
-        }),
-      });
-      if (!res.ok) {
-        alert("No se pudo crear el post: " + res.status + ". Verifica tu sesión de Admin.");
-        return;
+
+      if (editingId) {
+        await apiFetch(`/posts/${editingId}/`, {
+          method: "PATCH",
+          body: JSON.stringify({ titulo: data.titulo, contenido: data.contenido }),
+        });
+        setEditingId(null);
+      } else {
+        await apiFetch("/posts/", {
+          method: "POST",
+          body: JSON.stringify({
+            titulo: data.titulo,
+            contenido: data.contenido,
+            categoria: categoriaId,
+          }),
+        });
+      }
+      resetPostForm();
+      load();
+    } catch (err: any) {
+      if (err.message === "UNAUTHORIZED") {
+        router.push("/login");
+      } else {
+        alert("No se pudo guardar el post. Verifica tu sesión de Admin.");
       }
     }
-    resetPostForm();
-    load();
   };
 
   // Guardar / Editar Alumno (Sólo pide Nombre y Apellido)
   const guardarAlumno = async () => {
     if (!alumnoNombre.trim()) return;
 
-    // Limpia espacios y acentos para generar username y email válidos para Django
     const usernameLimpio = alumnoNombre
       .toLowerCase()
       .trim()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // Remueve tildes
-      .replace(/[^a-z0-9]/g, "");      // Remueve espacios y caracteres especiales
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
 
     const username = usernameLimpio;
     const email = `${usernameLimpio}@lacroix.com`;
     const es_premium = alumnoPlan === "BEAST PRO";
     const is_active = alumnoEstado === "ACTIVO";
 
-    if (editingAlumnoId) {
-      const res = await fetch(`${API}/usuarios/${editingAlumnoId}/`, {
-        method: "PATCH",
-        headers: getHeaders(),
-        body: JSON.stringify({ username, email, es_premium, is_active }),
-      });
-      if (!res.ok) {
-        alert("Error al actualizar alumno: " + res.status);
-        return;
+    try {
+      if (editingAlumnoId) {
+        await apiFetch(`/usuarios/${editingAlumnoId}/`, {
+          method: "PATCH",
+          body: JSON.stringify({ username, email, es_premium, is_active }),
+        });
+        setEditingAlumnoId(null);
+      } else {
+        await apiFetch("/usuarios/", {
+          method: "POST",
+          body: JSON.stringify({
+            username,
+            email,
+            es_premium,
+            is_active,
+            password: "12345678",
+          }),
+        });
       }
-      setEditingAlumnoId(null);
-    } else {
-      const res = await fetch(`${API}/usuarios/`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({
-          username,
-          email,
-          es_premium,
-          is_active,
-          password: "12345678",
-        }),
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        alert("Error al crear alumno: " + res.status + " " + txt.slice(0, 150));
-        return;
+      setAlumnoNombre("");
+      setAlumnoPlan("BEAST");
+      setAlumnoEstado("ACTIVO");
+      load();
+    } catch (err: any) {
+      if (err.message === "UNAUTHORIZED") {
+        router.push("/login");
+      } else {
+        alert("Error al guardar alumno: " + err.message.slice(0, 150));
       }
     }
-    setAlumnoNombre("");
-    setAlumnoPlan("BEAST");
-    setAlumnoEstado("ACTIVO");
-    load();
   };
 
   const startEditAlumno = (a: any) => {
@@ -235,36 +227,37 @@ export default function DashboardPro() {
   // Guardar / Borrar Comentario
   const saveCommentEdit = async () => {
     if (!editingCommentId) return;
-    const res = await fetch(`${API}/comentarios/${editingCommentId}/`, {
-      method: "PATCH",
-      headers: getHeaders(),
-      body: JSON.stringify({ texto: editingCommentText }),
-    });
-    if (!res.ok) {
-      alert("Error al actualizar comentario: " + res.status);
-      return;
+    try {
+      await apiFetch(`/comentarios/${editingCommentId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ texto: editingCommentText }),
+      });
+      setEditingCommentId(null);
+      setEditingCommentText("");
+      load();
+    } catch (err: any) {
+      alert("Error al actualizar comentario.");
     }
-    setEditingCommentId(null);
-    setEditingCommentText("");
-    load();
   };
 
   const deleteComment = async (id: number) => {
     if (!confirm("¿Deseas eliminar este comentario definitivamente?")) return;
-    await fetch(`${API}/comentarios/${id}/`, {
-      method: "DELETE",
-      headers: getHeaders(),
-    });
-    load();
+    try {
+      await apiFetch(`/comentarios/${id}/`, { method: "DELETE" });
+      load();
+    } catch (err) {
+      alert("Error al borrar comentario.");
+    }
   };
 
   const borrarUsuarioDjango = async (id: number) => {
     if (!confirm(`¿Borrar usuario #${id} de la base de datos de Django?`)) return;
-    await fetch(`${API}/usuarios/${id}/`, {
-      method: "DELETE",
-      headers: getHeaders(),
-    });
-    load();
+    try {
+      await apiFetch(`/usuarios/${id}/`, { method: "DELETE" });
+      load();
+    } catch (err) {
+      alert("Error al borrar usuario.");
+    }
   };
 
   if (!auth) {
@@ -454,10 +447,7 @@ export default function DashboardPro() {
                     <button
                       onClick={async () => {
                         if (confirm(`¿Eliminar alumno ${a.nombre}?`)) {
-                          await fetch(`${API}/usuarios/${a.id}/`, {
-                            method: "DELETE",
-                            headers: getHeaders(),
-                          });
+                          await apiFetch(`/usuarios/${a.id}/`, { method: "DELETE" });
                           load();
                         }
                       }}
@@ -545,10 +535,7 @@ export default function DashboardPro() {
                     <button
                       onClick={async () => {
                         if (confirm("¿Borrar post?")) {
-                          await fetch(`${API}/posts/${p.id}/`, {
-                            method: "DELETE",
-                            headers: getHeaders(),
-                          });
+                          await apiFetch(`/posts/${p.id}/`, { method: "DELETE" });
                           load();
                         }
                       }}
